@@ -278,20 +278,39 @@ def convert_text_to_img(text: list[str], font_name=default_font_name, font_size=
 
     d = PIL.ImageDraw.Draw(img)
 
-    # Detect if text is predominantly RTL
-    combined_text = " ".join(text)
-    is_rtl = is_rtl_text(combined_text)
-    alignment = "right" if is_rtl else "left"
-
-    lines = []
+    # Process each line and draw with individual alignment
+    y_position = 0
     for line in text:
-        # Apply bidirectional algorithm for RTL support
-        bidi_line = get_display(line)
-        lines.append(get_wrapped_text(bidi_line, font, PrinterWidth))
-    lines = "\n".join(lines)
-    lines = lines.replace("\n\n", "\n")
-    print(lines)
-    d.multiline_text((0, 0), lines, fill=(0, 0, 0), align=alignment, font=font, spacing=0)
+        # Wrap the text first (before applying bidi algorithm)
+        wrapped_text = get_wrapped_text(line, font, PrinterWidth)
+
+        # Split wrapped text into individual lines
+        individual_lines = wrapped_text.split('\n')
+
+        for individual_line in individual_lines:
+            if not individual_line.strip():
+                continue
+
+            # Apply bidirectional algorithm to each wrapped line separately
+            bidi_line = get_display(individual_line)
+
+            # Detect alignment for this specific line
+            is_rtl = is_rtl_text(bidi_line)
+
+            if is_rtl:
+                # Right-aligned: calculate x position based on text width
+                text_width = font.getlength(bidi_line)
+                x_position = PrinterWidth - text_width
+            else:
+                # Left-aligned
+                x_position = 0
+
+            print(f"Line: '{bidi_line}' | RTL: {is_rtl} | X: {x_position}")
+            d.text((x_position, y_position), bidi_line, fill=(0, 0, 0), font=font)
+
+            # Move to next line position
+            y_position += font.size
+
     return trim(img)
 
 
