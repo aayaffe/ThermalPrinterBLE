@@ -96,7 +96,7 @@ PrinterWidth = 384
 ImgPrintSpeed = [0x23]
 BlankSpeed = [0x19]
 
-feed_lines = 55
+feed_lines = 80
 header_lines = 0
 scale_feed = False
 
