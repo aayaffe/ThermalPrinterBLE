@@ -102,7 +102,9 @@ feed_lines = 80
 header_lines = 0
 scale_feed = False
 
-default_font_name = "HackNerdFontMono-Regular.ttf"
+# default_font_name = "HackNerdFontMono-Regular.ttf"
+default_font_name = "Heebo-VariableFont_wght.ttf"
+
 
 packet_length = 60
 throttle = 0.01
