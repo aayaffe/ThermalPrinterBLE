@@ -14,6 +14,8 @@ import PIL.ImageDraw
 import PIL.ImageChops
 import filetype
 
+from bidi.algorithm import get_display
+
 # CRC8 table extracted from APK, pretty standard though
 crc8_table = (
     0x00, 0x07, 0x0e, 0x09, 0x1c, 0x1b, 0x12, 0x15, 0x38, 0x3f, 0x36, 0x31,
@@ -243,18 +245,51 @@ def trim(im):
         return im.crop((bbox[0], bbox[1], bbox[2], bbox[3] + 10))  # don't cut off the end of the image
 
 
+def is_rtl_text(text: str) -> bool:
+    """
+    Detect if text is predominantly right-to-left.
+    Checks for Hebrew (0x0590-0x05FF) and Arabic (0x0600-0x06FF, 0x0750-0x077F) characters.
+    """
+    rtl_count = 0
+    ltr_count = 0
+
+    for char in text:
+        code = ord(char)
+        # Hebrew: 0x0590-0x05FF
+        # Arabic: 0x0600-0x06FF, 0x0750-0x077F, 0x08A0-0x08FF
+        if (0x0590 <= code <= 0x05FF) or (0x0600 <= code <= 0x06FF) or \
+           (0x0750 <= code <= 0x077F) or (0x08A0 <= code <= 0x08FF):
+            rtl_count += 1
+        # Latin alphabet and common LTR characters
+        elif (0x0041 <= code <= 0x005A) or (0x0061 <= code <= 0x007A) or \
+             (0x0030 <= code <= 0x0039):
+            ltr_count += 1
+
+    # Consider text RTL if more than 50% of directional characters are RTL
+    total = rtl_count + ltr_count
+    return rtl_count > ltr_count if total > 0 else False
+
+
 def convert_text_to_img(text: list[str], font_name=default_font_name, font_size=30):
     img = PIL.Image.new('RGB', (PrinterWidth, 5000), color=(255, 255, 255))
     font = PIL.ImageFont.truetype(font_name, font_size)
 
     d = PIL.ImageDraw.Draw(img)
+
+    # Detect if text is predominantly RTL
+    combined_text = " ".join(text)
+    is_rtl = is_rtl_text(combined_text)
+    alignment = "right" if is_rtl else "left"
+
     lines = []
     for line in text:
-        lines.append(get_wrapped_text(line, font, PrinterWidth))
+        # Apply bidirectional algorithm for RTL support
+        bidi_line = get_display(line)
+        lines.append(get_wrapped_text(bidi_line, font, PrinterWidth))
     lines = "\n".join(lines)
     lines = lines.replace("\n\n", "\n")
     print(lines)
-    d.multiline_text((0, 0), lines, fill=(0, 0, 0), align="left", font=font, spacing=0)
+    d.multiline_text((0, 0), lines, fill=(0, 0, 0), align=alignment, font=font, spacing=0)
     return trim(img)
 
 
@@ -369,7 +404,7 @@ def produce_print_data(eject: bool, no_eject: bool, assume_text: bool, filename:
         if kind == "image":
             image = PIL.Image.open(filename)
         elif kind == "text":
-            with open(filename, "r") as f:
+            with open(filename, "r", encoding="utf-8", errors="replace") as f:
                 text = f.readlines()
             image = convert_text_to_img(text)
         else:
