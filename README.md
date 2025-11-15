@@ -1,14 +1,14 @@
-# gb01print
+# BLE Thermal Printer GB01/MX06/X6h Print Script
 
-Python script to print images to GB01/MX06 printer from the command line.
+Python script to print images to GB01/MX06/X6h printer from the command line.
 
-The GB01/MX06 is a small Bluetooth thermal printer that uses receipt paper. 
-I don't know if it's been built into other cases, but mine kind of looks like a cat.
-You can tell it's a GB01/MX06 because it shows up as a Bluetooth device called "GB01" or "MX06" when you scan for it.
+The GB01/MX06/X6h are small Bluetooth thermal printer that use receipt paper. 
+They take many forms some are look like a cat.
+You can tell it's a GB01/MX06/X6h because it shows up as a Bluetooth device called "GB01", "MX06" or "X6h"  when you scan for it.
 
 This script takes a filename as its only required parameter. 
 It will attempt to load the file as an image, 
-connect to the first Bluetooth low energy device called "GB01" or "MX06" it finds,
+connect to the first Bluetooth low energy device called "GB01", "MX06" or "X6h-0000" it finds,
 and print the image.
 
 ## What's new in this fork?
@@ -19,7 +19,7 @@ See, it's a cat printer. That means you should be able to cat something to it.
 
 Run `python gb01print.py --pipe cat_printer`, and it will create a named pipe called `cat_printer` in the current directory.
 
-Now, when you go `cat cat.txt > cat_printer` you cat to cat printer and it prints your cats!
+Now, when you go `cat cat.txt > cat_printer` you cat to cat printer and it will print your cats!
 
 ### Printing text
 
@@ -56,7 +56,7 @@ It goes like this: `python gb01print.py --assume-text cat.txt`.
                             MAC address of printer in hex (rightmost digits, colons optional)
       -D, --debug           output notifications received from printer, in hex
       --assume-text         assume that file type is text
-      --pipe                treat the file as a continous pipe, listen to it and output everything to printer
+      --pipe                treat the file as a continuous pipe, listen to it and output everything to printer
       -t SECONDS, --throttle SECONDS
                             delay between sending command queue packets (default: 0.01)
       -T, --no-throttle     don't wait while sending data
