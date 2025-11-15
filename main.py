@@ -116,11 +116,15 @@ debug = False
 
 def detect_printer(detected, advertisement_data):
     global device
+    global debug
+    if debug:
+        print("Found device: {} - {}".format(detected.address, detected.name))
+    # match by partial address if provided, otherwise match well-known names
     if address:
         cut_addr = detected.address.replace(":", "")[-(len(address)):].upper()
         if cut_addr != address:
             return
-    if detected.name in ('GB01', 'MX06'):
+    if detected.name in ('GB01', 'MX06', 'X6h-0000'):
         device = detected
 
 
@@ -144,23 +148,45 @@ def notification_handler(sender, data):
         # It also turns out this flag might not turn on, even when the battery's so low the printer shuts itself off…
         return
 
+
 @contextlib.asynccontextmanager
 async def connect():
-    scanner = BleakScanner()
-    scanner.register_detection_callback(detect_printer)
-    await scanner.start()
-    for x in range(50):
-        await asyncio.sleep(0.1)
-        if device:
-            break
-    await scanner.stop()
-
+    global device
+    if address:
+        # Direct connect using provided MAC address
+        # Reconstruct full MAC format (add colons if missing)
+        if ':' not in address:
+            # Assume user provided hex digits only; convert to MAC format
+            # Pad to 12 chars and insert colons every 2 chars
+            padded = address.zfill(12)
+            mac = ':'.join(padded[i:i + 2] for i in range(0, 12, 2))
+        else:
+            mac = address
+        print(f"Connecting directly to {mac}...")
+        try:
+            async with BleakClient(mac) as client:
+                await client.start_notify(NotifyCharacteristic, notification_handler)
+                device = mac  # store for reference
+                yield client
+        except BleakError as e:
+            print("Unable to connect to device at specified address.")
     if not device:
-        raise BleakError("The printer was not found.")
-    async with BleakClient(device) as client:
-        # Set up callback to handle messages from the printer
-        await client.start_notify(NotifyCharacteristic, notification_handler)
-        yield client
+        print("Searching for device...")
+        # Fall back to discovery
+        scan_attempts = 15
+        scan_timeout = 5
+        for _ in range(scan_attempts):
+            devices = await BleakScanner.discover(timeout=scan_timeout)
+            for d in devices:
+                detect_printer(d, None)
+            if device:
+                break
+        if not device:
+            raise BleakError("The printer was not found.")
+        async with BleakClient(device) as client:
+            await client.start_notify(NotifyCharacteristic, notification_handler)
+            yield client
+
 
 async def send(client, data):
     # Cut the command stream up into pieces small enough for the printer to handle
@@ -170,11 +196,13 @@ async def send(client, data):
         await asyncio.sleep(throttle)
     return new_data
 
+
 async def connect_and_send(data_iter):
     async with connect() as client:
         for data in data_iter:
             while data:
                 data = await send(client, data)
+
 
 def request_status():
     return format_message(GetDevState, [0x00])
@@ -207,18 +235,18 @@ def get_wrapped_text(text: str, font: PIL.ImageFont.ImageFont,
 
 
 def trim(im):
-    bg = PIL.Image.new(im.mode, im.size, (255,255,255))
+    bg = PIL.Image.new(im.mode, im.size, (255, 255, 255))
     diff = PIL.ImageChops.difference(im, bg)
     diff = PIL.ImageChops.add(diff, diff, 2.0)
     bbox = diff.getbbox()
     if bbox:
-        return im.crop((bbox[0],bbox[1],bbox[2],bbox[3]+10)) # don't cut off the end of the image
+        return im.crop((bbox[0], bbox[1], bbox[2], bbox[3] + 10))  # don't cut off the end of the image
 
 
 def convert_text_to_img(text: list[str], font_name=default_font_name, font_size=30):
-    img = PIL.Image.new('RGB', (PrinterWidth, 5000), color = (255, 255, 255))
+    img = PIL.Image.new('RGB', (PrinterWidth, 5000), color=(255, 255, 255))
     font = PIL.ImageFont.truetype(font_name, font_size)
-    
+
     d = PIL.ImageDraw.Draw(img)
     lines = []
     for line in text:
@@ -226,7 +254,7 @@ def convert_text_to_img(text: list[str], font_name=default_font_name, font_size=
     lines = "\n".join(lines)
     lines = lines.replace("\n\n", "\n")
     print(lines)
-    d.multiline_text((0,0), lines, fill=(0,0,0), align="left", font=font, spacing=0)
+    d.multiline_text((0, 0), lines, fill=(0, 0, 0), align="left", font=font, spacing=0)
     return trim(img)
 
 
@@ -310,6 +338,7 @@ def follow(file, sleep_sec=0.1):
                 line = ''
         elif sleep_sec:
             time.sleep(sleep_sec)
+
 
 def produce_text_print_data(eject: bool, no_eject: bool, text: str):
     try:
@@ -398,11 +427,13 @@ if __name__ == "__main__":
                         action="store_true")
 
     parser.add_argument("--assume-text", help="assume that file type is text", action="store_true", dest="assume_text")
-    parser.add_argument("--pipe", help="treat the file as a continous pipe, listen to it and output everything to printer", action="store_true")
+    parser.add_argument("--pipe",
+                        help="treat the file as a continuous pipe, listen to it and output everything to printer",
+                        action="store_true")
 
     throttle_args = parser.add_mutually_exclusive_group()
     throttle_args.add_argument("-t", "--throttle", type=float, default=throttle, metavar="SECONDS",
-                               help="delay between sending command queue packets (default: {})".format(throttle),)
+                               help="delay between sending command queue packets (default: {})".format(throttle), )
     throttle_args.add_argument("-T", "--no-throttle",
                                help="don't wait while sending data",
                                action="store_const", dest="throttle", const=None)
