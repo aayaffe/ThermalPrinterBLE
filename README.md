@@ -3,7 +3,7 @@
 Python script to print images to GB01/MX06/X6h printer from the command line.
 
 The GB01/MX06/X6h are small Bluetooth thermal printer that use receipt paper. 
-They take many forms some are look like a cat.
+They take many forms; some look like a cat.
 You can tell it's a GB01/MX06/X6h because it shows up as a Bluetooth device called "GB01", "MX06" or "X6h"  when you scan for it.
 
 This script takes a filename as its only required parameter. 
